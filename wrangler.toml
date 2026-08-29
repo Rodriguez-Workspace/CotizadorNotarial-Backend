@@ -10,13 +10,13 @@ compatibility_flags = ["nodejs_compat"]
 # -------------------------------------------------------
 [[kv_namespaces]]
 binding = "SHEETS_KV"
-id = "REEMPLAZAR_CON_ID_REAL"
+id = "fccac705acc346b191cb4cf83cf350e2"
 
 # -------------------------------------------------------
 # Variables de entorno (no sensibles)
 # -------------------------------------------------------
 [vars]
-FIREBASE_PROJECT_ID = "REEMPLAZAR_CON_TU_FIREBASE_PROJECT_ID"
+FIREBASE_PROJECT_ID = "cotizacionesnotariales"
 
 # -------------------------------------------------------
 # Para desarrollo local

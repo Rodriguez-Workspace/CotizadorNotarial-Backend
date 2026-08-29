@@ -1,0 +1,31 @@
+name = "cotizador-worker"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# -------------------------------------------------------
+# KV Namespace para guardar el spreadsheetId por usuario
+# IMPORTANTE: Ejecutar este comando y reemplazar el id:
+#   npx wrangler kv namespace create SHEETS_KV
+# -------------------------------------------------------
+[[kv_namespaces]]
+binding = "SHEETS_KV"
+id = "REEMPLAZAR_CON_ID_REAL"
+
+# -------------------------------------------------------
+# Variables de entorno (no sensibles)
+# -------------------------------------------------------
+[vars]
+FIREBASE_PROJECT_ID = "REEMPLAZAR_CON_TU_FIREBASE_PROJECT_ID"
+
+# -------------------------------------------------------
+# Para desarrollo local
+# -------------------------------------------------------
+[dev]
+port = 8787
+
+# -------------------------------------------------------
+# Secret (sensible — se configura con wrangler secret):
+#   npx wrangler secret put GOOGLE_SERVICE_ACCOUNT
+#   (pegar el JSON completo del archivo descargado de GCP)
+# -------------------------------------------------------

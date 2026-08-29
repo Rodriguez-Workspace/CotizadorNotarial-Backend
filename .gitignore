@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+*.local
+.env
+*.json.bak
+
+# ⚠️ NUNCA subir el JSON del Service Account a Git
+*service-account*.json
+*credentials*.json

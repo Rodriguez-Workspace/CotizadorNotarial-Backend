@@ -8,3 +8,5 @@ dist/
 # ⚠️ NUNCA subir el JSON del Service Account a Git
 *service-account*.json
 *credentials*.json
+*-firebase-adminsdk-*.json
+*.json.key

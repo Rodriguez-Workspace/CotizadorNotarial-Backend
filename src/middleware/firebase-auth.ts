@@ -1,24 +1,30 @@
 import { Context, Next } from 'hono';
 import { Env, AuthenticatedUser } from '../types';
 
-let cachedKeys: Record<string, string> = {};
+let cachedKeys: Record<string, any> = {};
 let cacheExpiry = 0;
 
-async function getFirebasePublicKeys(): Promise<Record<string, string>> {
+async function getFirebasePublicKeys(): Promise<Record<string, any>> {
   const now = Date.now();
   if (now < cacheExpiry && Object.keys(cachedKeys).length > 0) {
     return cachedKeys;
   }
 
   const res = await fetch(
-    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
   );
   
   const cacheControl = res.headers.get('Cache-Control') || '';
   const maxAge = parseInt(cacheControl.match(/max-age=(\d+)/)?.[1] || '3600');
   cacheExpiry = now + maxAge * 1000;
   
-  cachedKeys = await res.json();
+  const data: any = await res.json();
+  cachedKeys = {};
+  if (data.keys) {
+    for (const key of data.keys) {
+      cachedKeys[key.kid] = key;
+    }
+  }
   return cachedKeys;
 }
 
@@ -37,13 +43,12 @@ async function verifyFirebaseToken(
     const header = JSON.parse(decodeB64Url(headerB64));
     
     const keys = await getFirebasePublicKeys();
-    const certPem = keys[header.kid];
-    if (!certPem) throw new Error(`No cert found for kid: ${header.kid}`);
+    const jwk = keys[header.kid];
+    if (!jwk) throw new Error(`No JWK found for kid: ${header.kid}`);
 
-    const certDer = pemToDer(certPem);
     const publicKey = await crypto.subtle.importKey(
-      'spki',
-      certDer,
+      'jwk',
+      jwk,
       { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
       false,
       ['verify']
@@ -75,14 +80,6 @@ async function verifyFirebaseToken(
     console.error('Token validation failed:', error);
     throw new Error(error.message || error.toString());
   }
-}
-
-function pemToDer(pem: string): ArrayBuffer {
-  const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
 }
 
 function base64UrlToArrayBuffer(b64url: string): ArrayBuffer {

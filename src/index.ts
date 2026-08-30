@@ -9,7 +9,7 @@ type Variables = { user: AuthenticatedUser };
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.use('*', secureHeaders());
+app.use('*', secureHeaders({ crossOriginOpenerPolicy: false }));
 
 app.use('*', cors({
   origin: (origin) => origin, // Permite cualquier origen de forma dinámica. Ajustar a los de cloudflare en producción si se desea.

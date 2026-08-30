@@ -10,7 +10,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', cors({
   origin: (origin) => origin, // Permite cualquier origen de forma dinámica. Ajustar a los de cloudflare en producción si se desea.
-  allowHeaders: ['Authorization', 'Content-Type'],
+  allowHeaders: ['Authorization', 'Content-Type', 'x-google-oauth-token'],
   allowMethods: ['GET', 'POST', 'OPTIONS'],
 }));
 
@@ -20,10 +20,14 @@ app.get('/health', (c) => c.json({ ok: true }));
 
 app.post('/api/cotizaciones', async (c) => {
   const user = c.get('user');
+  const googleToken = c.req.header('x-google-oauth-token');
+  if (!googleToken) {
+    return c.json({ error: 'Falta token de Google OAuth' }, 401);
+  }
   const body = await c.req.json();
   
   try {
-    await saveCotizacion(body, user.email, c.env);
+    await saveCotizacion(body, user.email, googleToken, c.env);
     return c.json({ success: true });
   } catch (error: any) {
     console.error('Error saving cotización:', error.message || error);
@@ -33,11 +37,15 @@ app.post('/api/cotizaciones', async (c) => {
 
 app.get('/api/historial', async (c) => {
   const user = c.get('user');
+  const googleToken = c.req.header('x-google-oauth-token');
+  if (!googleToken) {
+    return c.json({ error: 'Falta token de Google OAuth' }, 401);
+  }
   const limit = parseInt(c.req.query('limit') || '100');
   const offset = parseInt(c.req.query('offset') || '0');
 
   try {
-    const result = await getHistorial(user.email, limit, offset, c.env);
+    const result = await getHistorial(user.email, limit, offset, googleToken, c.env);
     return c.json(result);
   } catch (error: any) {
     console.error('Error fetching historial:', error.message || error);

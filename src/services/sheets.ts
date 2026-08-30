@@ -1,16 +1,15 @@
-import { getServiceAccountToken } from './google-auth';
 import { CotizacionSheet, Env } from '../types';
 
 const FILE_NAME = 'Cotizaciones Notariales';
 
 async function getOrCreateSpreadsheet(
   userEmail: string,
+  token: string,
   env: Env
 ): Promise<string> {
   const cached = await env.SHEETS_KV.get(`sheet:${userEmail}`);
   if (cached) return cached;
 
-  const token = await getServiceAccountToken(env.GOOGLE_SERVICE_ACCOUNT);
   const headers = {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
@@ -21,6 +20,7 @@ async function getOrCreateSpreadsheet(
     { headers }
   );
   const searchData: any = await searchRes.json();
+  console.log("Search Drive Data:", JSON.stringify(searchData));
 
   if (searchData.files?.length > 0) {
     const spreadsheetId = searchData.files[0].id;
@@ -34,17 +34,8 @@ async function getOrCreateSpreadsheet(
     body: JSON.stringify({ properties: { title: FILE_NAME } }),
   });
   const createData: any = await createRes.json();
+  console.log("Create Spreadsheet Data:", JSON.stringify(createData));
   const spreadsheetId = createData.spreadsheetId;
-
-  await fetch(`https://www.googleapis.com/drive/v3/files/${spreadsheetId}/permissions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      type: 'user',
-      role: 'writer',
-      emailAddress: userEmail,
-    }),
-  });
 
   await appendRowValues(spreadsheetId, token, [
     'Fecha', 'Referencia Interna', 'Tipo de Acto', 'Moneda',
@@ -56,6 +47,7 @@ async function getOrCreateSpreadsheet(
 }
 
 async function appendRowValues(spreadsheetId: string, token: string, values: any[]) {
+  console.log(`Appending to spreadsheet ${spreadsheetId} with token length ${token.length}...`);
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:append?valueInputOption=USER_ENTERED`,
     {
@@ -74,10 +66,10 @@ async function appendRowValues(spreadsheetId: string, token: string, values: any
 export async function saveCotizacion(
   data: CotizacionSheet,
   userEmail: string,
+  token: string,
   env: Env
 ): Promise<void> {
-  const token = await getServiceAccountToken(env.GOOGLE_SERVICE_ACCOUNT);
-  const spreadsheetId = await getOrCreateSpreadsheet(userEmail, env);
+  const spreadsheetId = await getOrCreateSpreadsheet(userEmail, token, env);
   
   await appendRowValues(spreadsheetId, token, [
     data.fecha, data.referenciaInterna, data.tipoActo, data.moneda,
@@ -90,12 +82,12 @@ export async function getHistorial(
   userEmail: string,
   limit: number,
   offset: number,
+  token: string,
   env: Env
 ): Promise<{ data: CotizacionSheet[]; hasMore: boolean }> {
   const spreadsheetId = await env.SHEETS_KV.get(`sheet:${userEmail}`);
   if (!spreadsheetId) return { data: [], hasMore: false };
 
-  const token = await getServiceAccountToken(env.GOOGLE_SERVICE_ACCOUNT);
   const headers = { 'Authorization': `Bearer ${token}` };
 
   const countRes = await fetch(

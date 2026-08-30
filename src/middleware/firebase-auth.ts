@@ -38,7 +38,7 @@ async function verifyFirebaseToken(
     
     const keys = await getFirebasePublicKeys();
     const certPem = keys[header.kid];
-    if (!certPem) return null;
+    if (!certPem) throw new Error(`No cert found for kid: ${header.kid}`);
 
     const certDer = pemToDer(certPem);
     const publicKey = await crypto.subtle.importKey(
@@ -60,20 +60,20 @@ async function verifyFirebaseToken(
       dataToVerify
     );
 
-    if (!isValid) return null;
+    if (!isValid) throw new Error("Invalid signature");
 
     const payload = JSON.parse(decodeB64Url(parts[1]));
     const now = Math.floor(Date.now() / 1000);
 
-    if (payload.exp < now) return null;
-    if (payload.iat > now + 300) return null;
-    if (payload.aud !== projectId) return null;
-    if (payload.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    if (payload.exp < now) throw new Error(`Token expired. Exp: ${payload.exp}, Now: ${now}`);
+    if (payload.iat > now + 300) throw new Error(`Token from future. Iat: ${payload.iat}`);
+    if (payload.aud !== projectId) throw new Error(`Audience mismatch. Expected ${projectId}, got ${payload.aud}`);
+    if (payload.iss !== `https://securetoken.google.com/${projectId}`) throw new Error(`Issuer mismatch. Expected https://securetoken.google.com/${projectId}, got ${payload.iss}`);
 
     return { email: payload.email, uid: payload.sub };
   } catch (error: any) {
     console.error('Token validation failed:', error);
-    return null;
+    throw new Error(error.message || error.toString());
   }
 }
 
@@ -99,12 +99,11 @@ export async function firebaseAuthMiddleware(c: Context<{ Bindings: Env }>, next
   }
 
   const token = authHeader.slice(7);
-  const user = await verifyFirebaseToken(token, c.env.FIREBASE_PROJECT_ID);
-
-  if (!user) {
-    return c.json({ error: 'Token inválido o expirado' }, 401);
+  try {
+    const user = await verifyFirebaseToken(token, c.env.FIREBASE_PROJECT_ID);
+    c.set('user', user);
+    await next();
+  } catch (err: any) {
+    return c.json({ error: 'Token inválido o expirado', details: err.message }, 401);
   }
-
-  c.set('user', user);
-  await next();
 }

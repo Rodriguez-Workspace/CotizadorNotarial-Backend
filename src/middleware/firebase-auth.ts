@@ -22,13 +22,19 @@ async function getFirebasePublicKeys(): Promise<Record<string, string>> {
   return cachedKeys;
 }
 
+function decodeB64Url(b64url: string): string {
+  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  return atob(b64);
+}
+
 async function verifyFirebaseToken(
   token: string,
   projectId: string
 ): Promise<AuthenticatedUser | null> {
   try {
     const [headerB64] = token.split('.');
-    const header = JSON.parse(atob(headerB64.replace(/-/g, '+').replace(/_/g, '/')));
+    const header = JSON.parse(decodeB64Url(headerB64));
     
     const keys = await getFirebasePublicKeys();
     const certPem = keys[header.kid];
@@ -56,7 +62,7 @@ async function verifyFirebaseToken(
 
     if (!isValid) return null;
 
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const payload = JSON.parse(decodeB64Url(parts[1]));
     const now = Math.floor(Date.now() / 1000);
 
     if (payload.exp < now) return null;
@@ -65,7 +71,8 @@ async function verifyFirebaseToken(
     if (payload.iss !== `https://securetoken.google.com/${projectId}`) return null;
 
     return { email: payload.email, uid: payload.sub };
-  } catch {
+  } catch (error: any) {
+    console.error('Token validation failed:', error);
     return null;
   }
 }
@@ -79,8 +86,7 @@ function pemToDer(pem: string): ArrayBuffer {
 }
 
 function base64UrlToArrayBuffer(b64url: string): ArrayBuffer {
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(b64);
+  const binary = decodeB64Url(b64url);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;

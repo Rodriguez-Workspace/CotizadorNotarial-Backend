@@ -89,7 +89,7 @@ function base64UrlToArrayBuffer(b64url: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-export async function firebaseAuthMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
+export async function firebaseAuthMiddleware(c: Context<any>, next: Next) {
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'No autorizado' }, 401);

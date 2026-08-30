@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import { Env, AuthenticatedUser } from './types';
 import { firebaseAuthMiddleware } from './middleware/firebase-auth';
 import { saveCotizacion, getHistorial } from './services/sheets';
@@ -7,6 +8,8 @@ import { saveCotizacion, getHistorial } from './services/sheets';
 type Variables = { user: AuthenticatedUser };
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+app.use('*', secureHeaders());
 
 app.use('*', cors({
   origin: (origin) => origin, // Permite cualquier origen de forma dinámica. Ajustar a los de cloudflare en producción si se desea.

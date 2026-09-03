@@ -166,6 +166,23 @@ app.get('/diagnose', async (c) => {
   return c.json({ ok: true, steps });
 });
 
+app.get('/diagnose-sheets', async (c) => {
+  const steps: Record<string, string> = {};
+  try {
+    steps['1_msg'] = 'Testing Google Drive Spreadsheet creation';
+    
+    // Import createSpreadsheet
+    const { createSpreadsheet } = await import('./services/drive.service');
+    
+    const newId = await createSpreadsheet(c.env, 'TEST_DIAGNOSE');
+    steps['2_create'] = `ok, ID: ${newId}`;
+    
+    return c.json({ ok: true, steps });
+  } catch (e: any) {
+    steps['error'] = e.message ?? String(e);
+    return c.json({ ok: false, steps });
+  }
+});
 
 // ─── Protected API routes ─────────────────────────────────────────────────
 const api = new Hono<{ Bindings: Env; Variables: Variables }>();

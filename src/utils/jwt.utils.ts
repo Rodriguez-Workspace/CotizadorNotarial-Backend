@@ -80,53 +80,59 @@ export async function getServiceAccountToken(
     return tokenCache.token;
   }
 
-  const key = await importPrivateKey(privateKey);
+  // Clear any stale cache before attempting a new token
+  tokenCache = null;
 
-  // Build the JWT assertion
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: email,
-    sub: email,
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-    scope: scopes.join(' '),
-  };
+  try {
+    const key = await importPrivateKey(privateKey);
 
-  const headerB64  = base64url(JSON.stringify(header));
-  const payloadB64 = base64url(JSON.stringify(payload));
-  const signingInput = `${headerB64}.${payloadB64}`;
+    const header  = { alg: 'RS256', typ: 'JWT' };
+    const payload = {
+      iss:   email,
+      sub:   email,
+      aud:   'https://oauth2.googleapis.com/token',
+      iat:   now,
+      exp:   now + 3600,
+      scope: scopes.join(' '),
+    };
 
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(signingInput)
-  );
+    const headerB64   = base64url(JSON.stringify(header));
+    const payloadB64  = base64url(JSON.stringify(payload));
+    const signingInput = `${headerB64}.${payloadB64}`;
 
-  const jwt = `${signingInput}.${base64url(signature)}`;
+    const signature = await crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      new TextEncoder().encode(signingInput)
+    );
 
-  // Exchange the signed JWT for an access token
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  });
+    const jwt = `${signingInput}.${base64url(signature)}`;
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`SA token exchange failed (${response.status}): ${err}`);
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`SA token exchange failed (${response.status}): ${err}`);
+    }
+
+    const { access_token, expires_in } = (await response.json()) as {
+      access_token: string;
+      expires_in: number;
+    };
+
+    tokenCache = { token: access_token, expiresAt: now + expires_in };
+    return access_token;
+  } catch (err) {
+    tokenCache = null; // Ensure stale cache is never used
+    throw err;
   }
-
-  const { access_token, expires_in } = (await response.json()) as {
-    access_token: string;
-    expires_in: number;
-  };
-
-  tokenCache = { token: access_token, expiresAt: now + expires_in };
-  return access_token;
 }
 
 /** Scopes required for all Google APIs this Worker uses */

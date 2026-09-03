@@ -61,6 +61,7 @@ export async function authMiddleware(
   c: Context<{ Bindings: Env; Variables: Variables }>,
   next: Next
 ): Promise<Response | void> {
+  const t0 = Date.now();
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader?.startsWith('Bearer ')) {
@@ -77,6 +78,7 @@ export async function authMiddleware(
   const [headerB64, payloadB64, sigB64] = parts;
 
   try {
+    console.log('[auth] step1: parsing token');
     const header  = JSON.parse(b64urlDecode(headerB64));
     const payload = JSON.parse(b64urlDecode(payloadB64)) as {
       exp: number;
@@ -90,7 +92,6 @@ export async function authMiddleware(
 
     const now = Math.floor(Date.now() / 1000);
 
-    // ── Claim validation ──
     if (payload.exp < now) {
       return c.json({ error: 'Token expired' }, 401);
     }
@@ -101,11 +102,12 @@ export async function authMiddleware(
       return c.json({ error: 'Invalid issuer' }, 401);
     }
 
-    // ── Signature verification ──
+    console.log(`[auth] step2: fetching JWK for kid=${header.kid} (+${Date.now()-t0}ms)`);
     const publicKeys = await getFirebasePublicKeys();
     const jwk = publicKeys[header.kid as string];
     if (!jwk) return c.json({ error: 'Unknown key ID' }, 401);
 
+    console.log(`[auth] step3: importing JWK key (+${Date.now()-t0}ms)`);
     const cryptoKey = await crypto.subtle.importKey(
       'jwk',
       jwk,
@@ -114,6 +116,7 @@ export async function authMiddleware(
       ['verify']
     );
 
+    console.log(`[auth] step4: verifying RSA signature (+${Date.now()-t0}ms)`);
     const valid = await crypto.subtle.verify(
       'RSASSA-PKCS1-v1_5',
       cryptoKey,
@@ -123,11 +126,12 @@ export async function authMiddleware(
 
     if (!valid) return c.json({ error: 'Invalid signature' }, 401);
 
-    // ── Load user record from Firestore ──
+    console.log(`[auth] step5: loading user from Firestore (${payload.email}) (+${Date.now()-t0}ms)`);
     const userDoc = await firestoreGetDoc(
       c.env,
       `usuarios_autorizados/${payload.email}`
     );
+    console.log(`[auth] step5 done: userDoc=${userDoc ? 'found' : 'null'} (+${Date.now()-t0}ms)`);
 
     if (!userDoc) {
       return c.json({ error: 'Usuario no autorizado' }, 403);
@@ -137,15 +141,16 @@ export async function authMiddleware(
       return c.json({ error: 'Cuenta inactiva' }, 403);
     }
 
-    // Populate context variables for downstream routes
     c.set('userEmail',  payload.email);
     c.set('userId',     payload.sub);
     c.set('notariaId',  userDoc['notaria_id'] as string);
     c.set('rol',        userDoc['rol'] as string);
 
+    console.log(`[auth] step6: calling next (+${Date.now()-t0}ms)`);
     await next();
+    console.log(`[auth] done (+${Date.now()-t0}ms)`);
   } catch (err) {
-    console.error('[authMiddleware] error:', err);
-    return c.json({ error: 'Authentication failed' }, 401);
+    console.error('[authMiddleware] error:', (err as Error).message, (err as Error).stack);
+    return c.json({ error: 'Authentication failed', detail: (err as Error).message }, 401);
   }
 }

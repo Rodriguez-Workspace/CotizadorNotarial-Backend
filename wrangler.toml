@@ -1,0 +1,10 @@
+name = "cotizador-notarial-backend"
+main = "src/index.ts"
+compatibility_date = "2024-10-04"
+compatibility_flags = ["nodejs_compat"]
+
+# Variables de texto (no sensibles) — los secrets van en el dashboard de Cloudflare
+[vars]
+FIREBASE_PROJECT_ID = "cotizacionesnotariales"
+# CORS_ORIGIN, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+# se configuran como Secrets en el dashboard de Cloudflare → Settings → Variables and Secrets

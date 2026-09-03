@@ -169,13 +169,35 @@ app.get('/diagnose', async (c) => {
 app.get('/diagnose-sheets', async (c) => {
   const steps: Record<string, string> = {};
   try {
-    steps['1_msg'] = 'Testing Google Drive Spreadsheet creation';
+    steps['1_msg'] = 'Testing Google Drive and Sheets API permissions';
     
-    // Import createSpreadsheet
+    // Test 1: Generate Token
+    const { getServiceAccountToken, GOOGLE_SCOPES } = await import('./utils/jwt.utils');
+    const token = await getServiceAccountToken(c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL, c.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY, GOOGLE_SCOPES);
+    steps['2_token'] = `ok, generated`;
+
+    // Test 2: Try creating via Drive API
+    const driveRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'TEST_DRIVE_API', mimeType: 'application/vnd.google-apps.spreadsheet' })
+    });
+    
+    if (!driveRes.ok) {
+      steps['3_drive_api_fail'] = await driveRes.text();
+    } else {
+      const driveData = await driveRes.json() as any;
+      steps['3_drive_api_success'] = `Created ID: ${driveData.id}`;
+    }
+
+    // Test 3: Try creating via Sheets API
     const { createSpreadsheet } = await import('./services/drive.service');
-    
-    const newId = await createSpreadsheet(c.env, 'TEST_DIAGNOSE');
-    steps['2_create'] = `ok, ID: ${newId}`;
+    try {
+      const newId = await createSpreadsheet(c.env, 'TEST_SHEETS_API');
+      steps['4_sheets_api_success'] = `Created ID: ${newId}`;
+    } catch (e: any) {
+      steps['4_sheets_api_fail'] = String(e.message);
+    }
     
     return c.json({ ok: true, steps });
   } catch (e: any) {

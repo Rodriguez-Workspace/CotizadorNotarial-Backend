@@ -32,20 +32,79 @@ app.use('*', async (c, next) => {
 
 // ─── Health check (public) ────────────────────────────────────────────────
 app.get('/', (c) => {
-  // Exposes which secrets are present — safe because values are not shown
   const secrets = {
-    FIREBASE_PROJECT_ID:              !!c.env.FIREBASE_PROJECT_ID,
-    GOOGLE_SERVICE_ACCOUNT_EMAIL:     !!c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    FIREBASE_PROJECT_ID:                !!c.env.FIREBASE_PROJECT_ID,
+    GOOGLE_SERVICE_ACCOUNT_EMAIL:       !!c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: !!c.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
-    CORS_ORIGIN:                      !!c.env.CORS_ORIGIN,
+    CORS_ORIGIN:                        !!c.env.CORS_ORIGIN,
   };
   const allPresent = Object.values(secrets).every(Boolean);
-  return c.json({
-    status: allPresent ? 'ok' : 'misconfigured',
-    service: 'cotizador-notarial-backend',
-    secrets,
-  });
+  return c.json({ status: allPresent ? 'ok' : 'misconfigured', service: 'cotizador-notarial-backend', secrets });
 });
+
+// ─── Diagnose (public, TEMPORAL) — prueba cada paso del SA token + Firestore ──
+// Accede a: https://cotizador-notarial-backend.andres-dev.workers.dev/diagnose
+app.get('/diagnose', async (c) => {
+  const steps: Record<string, string> = {};
+
+  // Paso 1: PEM key parse
+  try {
+    const pem    = c.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? '';
+    const norm   = pem.replace(/\\n/g, '\n');
+    const body   = norm
+      .replace(/-----BEGIN PRIVATE KEY-----/, '')
+      .replace(/-----END PRIVATE KEY-----/, '')
+      .replace(/\s+/g, '');
+    steps['1_pem_length']  = String(body.length);
+    steps['1_pem_prefix']  = body.slice(0, 20);  // first 20 chars of base64
+
+    const bin  = atob(body);
+    const buf  = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    steps['1_pem_bytes'] = String(buf.length);
+
+    await crypto.subtle.importKey(
+      'pkcs8', buf.buffer,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
+    );
+    steps['1_import_key'] = 'ok';
+  } catch (e: unknown) {
+    steps['1_import_key'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+    return c.json({ ok: false, steps });
+  }
+
+  // Paso 2: SA token exchange
+  let saToken = '';
+  try {
+    const { getServiceAccountToken, GOOGLE_SCOPES } = await import('./utils/jwt.utils');
+    saToken = await getServiceAccountToken(
+      c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      c.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+      GOOGLE_SCOPES
+    );
+    steps['2_sa_token'] = saToken ? `ok (${saToken.slice(0, 20)}...)` : 'empty!';
+  } catch (e: unknown) {
+    steps['2_sa_token'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+    return c.json({ ok: false, steps });
+  }
+
+  // Paso 3: Firestore read (collection raíz)
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${c.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/notarias?pageSize=1`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${saToken}` } });
+    steps['3_firestore_status'] = String(res.status);
+    if (!res.ok) {
+      steps['3_firestore_body'] = (await res.text()).slice(0, 300);
+    } else {
+      steps['3_firestore'] = 'ok';
+    }
+  } catch (e: unknown) {
+    steps['3_firestore'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+  }
+
+  return c.json({ ok: true, steps });
+});
+
 
 // ─── Protected API routes ─────────────────────────────────────────────────
 const api = new Hono<{ Bindings: Env; Variables: Variables }>();

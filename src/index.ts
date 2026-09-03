@@ -133,6 +133,36 @@ app.get('/diagnose', async (c) => {
     steps['5_usuarios'] = `ERROR: ${(e as Error).message ?? String(e)}`;
   }
 
+  // Paso 6: Firestore — documento exacto que usa tarifario.route.ts
+  try {
+    const url6 = `https://firestore.googleapis.com/v1/projects/${c.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/notarias/notaria_cruzado`;
+    const res6 = await fetch(url6, { headers: { Authorization: `Bearer ${saToken}` } });
+    steps['6_notaria_cruzado_status'] = String(res6.status);
+    if (res6.ok) {
+      const body6 = await res6.json() as { fields?: Record<string, unknown> };
+      steps['6_notaria_cruzado'] = body6.fields ? 'ok (tiene fields)' : 'ok (sin fields!)';
+    } else {
+      steps['6_notaria_cruzado_body'] = (await res6.text()).slice(0, 200);
+    }
+  } catch (e: unknown) {
+    steps['6_notaria_cruzado'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+  }
+
+  // Paso 7: Firestore — documento exacto que usa variables.route.ts
+  try {
+    const url7 = `https://firestore.googleapis.com/v1/projects/${c.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/variables_globales/valores_actuales`;
+    const res7 = await fetch(url7, { headers: { Authorization: `Bearer ${saToken}` } });
+    steps['7_variables_globales_status'] = String(res7.status);
+    if (res7.ok) {
+      const body7 = await res7.json() as { fields?: Record<string, unknown> };
+      steps['7_variables_globales'] = body7.fields ? 'ok (tiene fields)' : 'ok (sin fields!)';
+    } else {
+      steps['7_variables_globales_body'] = (await res7.text()).slice(0, 200);
+    }
+  } catch (e: unknown) {
+    steps['7_variables_globales'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+  }
+
   return c.json({ ok: true, steps });
 });
 

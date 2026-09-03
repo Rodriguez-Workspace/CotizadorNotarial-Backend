@@ -47,8 +47,11 @@ async function getFirebasePublicKeys(): Promise<Record<string, JsonWebKey>> {
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function b64urlDecode(str: string): string {
-  const padded = str + '==='.slice((str.length % 4) || 4);
-  return atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return atob(base64);
 }
 
 function b64urlToBytes(str: string): Uint8Array {

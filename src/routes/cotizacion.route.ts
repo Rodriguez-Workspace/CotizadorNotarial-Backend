@@ -16,7 +16,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables, CotizacionRow } from '../types';
 import { firestoreGetDoc } from '../services/firestore.service';
-import { appendCotizaciones, getOrCreateSpreadsheet } from '../services/sheets.service';
+import { appendCotizaciones, getSpreadsheetId } from '../services/sheets.service';
 
 const cotizacion = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -57,7 +57,7 @@ cotizacion.post('/', async (c) => {
   await appendCotizaciones(c.env, email, notariaNombre, rows);
 
   // Return the spreadsheetId so the frontend can show a direct link if desired
-  const spreadsheetId = await getOrCreateSpreadsheet(c.env, email, notariaNombre);
+  const spreadsheetId = await getSpreadsheetId(c.env, email);
 
   return c.json({ success: true, spreadsheetId });
 });

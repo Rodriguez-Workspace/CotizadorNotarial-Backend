@@ -13,8 +13,7 @@
 
 import type { Env, CotizacionRow } from '../types';
 import { getServiceAccountToken, GOOGLE_SCOPES } from '../utils/jwt.utils';
-import { firestoreGetDoc, firestoreUpdateDoc } from './firestore.service';
-import { createSpreadsheet, shareSpreadsheet } from './drive.service';
+import { firestoreGetDoc } from './firestore.service';
 
 const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
 const SHEET_NAME  = 'Cotizaciones';
@@ -36,32 +35,16 @@ async function getToken(env: Env): Promise<string> {
  * @param email         Abogado's email (used as Firestore document key)
  * @param notariaNombre Display name of the notaría (used in the Sheet title)
  */
-export async function getOrCreateSpreadsheet(
+export async function getSpreadsheetId(
   env: Env,
-  email: string,
-  notariaNombre: string
+  email: string
 ): Promise<string> {
-  // 1. Check if the ID is already stored in Firestore
   const userDoc = await firestoreGetDoc(env, `usuarios_autorizados/${email}`);
   const existingId = userDoc?.['spreadsheet_id'] as string | undefined;
 
   if (existingId) return existingId;
 
-  // 2. Create a new spreadsheet owned by the Service Account
-  const newId = await createSpreadsheet(env, notariaNombre);
-
-  // 3. Share it with the abogado (non-fatal if it fails)
-  await shareSpreadsheet(env, newId, email);
-
-  // 4. Persist the ID to Firestore for future requests
-  await firestoreUpdateDoc(
-    env,
-    `usuarios_autorizados/${email}`,
-    { spreadsheet_id: newId },
-    ['spreadsheet_id']
-  );
-
-  return newId;
+  throw new Error('No spreadsheet_id found for user. Please login through the Frontend to initialize the Google Sheet.');
 }
 
 // ─── Write ─────────────────────────────────────────────────────────────────
@@ -80,7 +63,7 @@ export async function appendCotizaciones(
   notariaNombre: string,
   rows: CotizacionRow[]
 ): Promise<void> {
-  const spreadsheetId = await getOrCreateSpreadsheet(env, email, notariaNombre);
+  const spreadsheetId = await getSpreadsheetId(env, email);
   const token = await getToken(env);
 
   const values = rows.map((r) => [

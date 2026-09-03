@@ -102,6 +102,37 @@ app.get('/diagnose', async (c) => {
     steps['3_firestore'] = `ERROR: ${(e as Error).message ?? String(e)}`;
   }
 
+  // Paso 4: Firebase JWK fetch (el mismo endpoint que usa authMiddleware)
+  try {
+    const jwkUrl = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
+    const t0 = Date.now();
+    const jwkRes = await fetch(jwkUrl);
+    steps['4_jwk_fetch_ms']    = String(Date.now() - t0);
+    steps['4_jwk_fetch_status'] = String(jwkRes.status);
+    if (jwkRes.ok) {
+      const data = await jwkRes.json() as { keys: unknown[] };
+      steps['4_jwk_key_count'] = String(data.keys?.length ?? 0);
+    } else {
+      steps['4_jwk_body'] = (await jwkRes.text()).slice(0, 200);
+    }
+  } catch (e: unknown) {
+    steps['4_jwk_fetch'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+  }
+
+  // Paso 5: usuarios_autorizados collection (el que usa authMiddleware)
+  try {
+    const url5 = `https://firestore.googleapis.com/v1/projects/${c.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/usuarios_autorizados?pageSize=1`;
+    const res5 = await fetch(url5, { headers: { Authorization: `Bearer ${saToken}` } });
+    steps['5_usuarios_status'] = String(res5.status);
+    if (!res5.ok) {
+      steps['5_usuarios_body'] = (await res5.text()).slice(0, 300);
+    } else {
+      steps['5_usuarios'] = 'ok';
+    }
+  } catch (e: unknown) {
+    steps['5_usuarios'] = `ERROR: ${(e as Error).message ?? String(e)}`;
+  }
+
   return c.json({ ok: true, steps });
 });
 

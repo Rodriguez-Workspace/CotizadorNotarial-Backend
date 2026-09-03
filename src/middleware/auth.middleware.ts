@@ -126,10 +126,11 @@ export async function authMiddleware(
 
     if (!valid) return c.json({ error: 'Invalid signature' }, 401);
 
-    console.log(`[auth] step5: loading user from Firestore (${payload.email}) (+${Date.now()-t0}ms)`);
+    const normalizedEmail = (payload.email || '').toLowerCase();
+    console.log(`[auth] step5: loading user from Firestore (${normalizedEmail}) (+${Date.now()-t0}ms)`);
     const userDoc = await firestoreGetDoc(
       c.env,
-      `usuarios_autorizados/${payload.email}`
+      `usuarios_autorizados/${normalizedEmail}`
     );
     console.log(`[auth] step5 done: userDoc=${userDoc ? 'found' : 'null'} (+${Date.now()-t0}ms)`);
 

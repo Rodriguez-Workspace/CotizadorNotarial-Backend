@@ -52,6 +52,12 @@ tenant.post('/spreadsheet', async (c) => {
   if (!body.spreadsheetId) {
     return c.json({ error: 'spreadsheetId is required' }, 400);
   }
+
+  // Validate spreadsheetId format (Google Sheets IDs are 30-60 alphanumeric chars with hyphens/underscores)
+  const sheetIdPattern = /^[a-zA-Z0-9_-]{20,80}$/;
+  if (!sheetIdPattern.test(body.spreadsheetId)) {
+    return c.json({ error: 'Invalid spreadsheetId format' }, 400);
+  }
   
   await firestoreUpdateDoc(
     c.env,

@@ -42,7 +42,7 @@ cotizacion.post('/', async (c) => {
     referenciaInterna: String(item['referenciaInterna'] ?? ''),
     tipoActo:          String(item['tipoActo']          ?? ''),
     moneda:            String(item['moneda']            ?? 'SOLES'),
-    cantidadInmuebles: Number(item['cantidadInmuebles'] ?? 1),
+    cantidadBienes: Number(item['cantidadBienes'] ?? 1),
     costoNotarial:     Number(item['costoNotarial']     ?? 0),
     costoRegistral:    Number(item['costoRegistral']    ?? 0),
     totalPagar:        Number(item['totalPagar']        ?? 0),

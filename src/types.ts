@@ -78,7 +78,7 @@ export interface CotizacionRow {
   referenciaInterna: string;
   tipoActo: string;
   moneda: string;
-  cantidadInmuebles: number;
+  cantidadBienes: number;
   costoNotarial: number;
   costoRegistral: number;
   totalPagar: number;

@@ -69,12 +69,12 @@ Configurar en el dashboard de Cloudflare Workers → Settings → Variables:
 
 | Variable | Descripción | Ejemplo |
 |---|---|---|
-| `FIREBASE_PROJECT_ID` | ID del proyecto Firebase | `cotizacionesnotariales` |
+| `FIREBASE_PROJECT_ID` | ID del proyecto Firebase | `` |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Email de la Service Account | `worker@proyecto.iam.gserviceaccount.com` |
 | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | Clave privada PEM de la SA (con `\n` literales) | `-----BEGIN PRIVATE KEY-----\n...` |
-| `CORS_ORIGIN` | URL exacta del frontend permitido | `https://cotizador.pages.dev` |
+| `CORS_ORIGIN` | URL exacta del frontend permitido | `` |
 
-> ⚠️ **Nunca** guardes estos valores en el código ni en el repositorio. Usar siempre `wrangler secret put`.
+>**Nunca** guardes estos valores en el código ni en el repositorio. Usar siempre `wrangler secret put`.
 
 ---
 
@@ -88,7 +88,7 @@ npm run type-check   # tsc --noEmit — verificación de tipos sin compilar
 
 Para desarrollo local, crear un archivo `.dev.vars` en la raíz (no commitear):
 ```ini
-FIREBASE_PROJECT_ID=cotizacionesnotariales
+FIREBASE_PROJECT_ID=...
 GOOGLE_SERVICE_ACCOUNT_EMAIL=...
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=...
 CORS_ORIGIN=http://localhost:4200

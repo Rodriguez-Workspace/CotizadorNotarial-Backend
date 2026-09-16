@@ -19,6 +19,12 @@ import historialRoute  from './routes/historial.route';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// ─── In-memory rate limit store ───────────────────────────────────────────
+// Keyed by IP. Cleared on isolate recycle (every few minutes on Cloudflare).
+const rateLimitStore = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT_MAX   = 30;   // requests
+const RATE_LIMIT_WINDOW = 60_000; // 1 minute in ms
+
 // ─── CORS ──────────────────────────────────────────────────────────────────
 app.use('*', async (c, next) => {
   const origin = c.env.CORS_ORIGIN;
@@ -41,6 +47,24 @@ app.use('*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+});
+
+// ─── Rate Limiting (per IP) ────────────────────────────────────────────────
+app.use('/api/*', async (c, next) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
+    rateLimitStore.set(ip, { count: 1, windowStart: now });
+  } else {
+    entry.count++;
+    if (entry.count > RATE_LIMIT_MAX) {
+      return c.json({ error: 'Too many requests — slow down' }, 429);
+    }
+  }
+  return next();
 });
 
 // ─── Health check (public) ────────────────────────────────────────────────
@@ -82,7 +106,8 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 // ─── Global error handler ─────────────────────────────────────────────────
 app.onError((err, c) => {
   console.error('[Worker error]', err.message, err.stack);
-  return c.json({ error: 'Internal server error', detail: err.message }, 500);
+  // Do not leak internal error details in production responses
+  return c.json({ error: 'Internal server error' }, 500);
 });
 
 export default app;

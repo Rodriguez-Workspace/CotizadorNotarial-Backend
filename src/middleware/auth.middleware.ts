@@ -145,9 +145,19 @@ export async function authMiddleware(
       return c.json({ error: 'Cuenta inactiva' }, 403);
     }
 
+    const notariaId = userDoc['notaria_id'] as string;
+
+    // Guard: notariaId must be a safe slug — alphanumeric, hyphens, underscores only.
+    // Prevents path traversal if a token payload were somehow tampered with.
+    const NOTARIA_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+    if (!notariaId || !NOTARIA_ID_PATTERN.test(notariaId)) {
+      console.error(`[auth] invalid notariaId format: "${notariaId}"`);
+      return c.json({ error: 'Configuración de cuenta inválida' }, 403);
+    }
+
     c.set('userEmail',  payload.email);
     c.set('userId',     payload.sub);
-    c.set('notariaId',  userDoc['notaria_id'] as string);
+    c.set('notariaId',  notariaId);
     c.set('rol',        userDoc['rol'] as string);
 
     console.log(`[auth] step6: calling next (+${Date.now()-t0}ms)`);

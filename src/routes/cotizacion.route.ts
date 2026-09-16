@@ -36,6 +36,12 @@ cotizacion.post('/', async (c) => {
     return c.json({ error: 'items must be a non-empty array' }, 400);
   }
 
+  // Prevent resource exhaustion: limit batch size per request
+  const MAX_ITEMS = 50;
+  if (body.items.length > MAX_ITEMS) {
+    return c.json({ error: `items array exceeds maximum allowed size of ${MAX_ITEMS}` }, 400);
+  }
+
   // Validate each row minimally
   const rows: CotizacionRow[] = (body.items as Record<string, unknown>[]).map((item) => ({
     fecha:             String(item['fecha']             ?? new Date().toISOString()),

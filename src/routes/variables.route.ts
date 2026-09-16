@@ -24,7 +24,7 @@ variables.get('/', async (c) => {
   }
 
   return c.json({
-    UIT:    Number(doc['UIT']    ?? 5150),
+    UIT:    Number(doc['UIT']    ?? 5500),
     compra: Number(doc['compra'] ?? 3.7),
     venta:  Number(doc['venta']  ?? 3.75),
     moneda: String(doc['moneda'] ?? 'USD'),

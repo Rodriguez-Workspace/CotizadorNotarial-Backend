@@ -21,9 +21,12 @@ import { getHistorial } from '../services/sheets.service';
 const historial = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 historial.get('/', async (c) => {
-  const email  = c.get('userEmail');
-  const limit  = Math.min(Number(c.req.query('limit')  ?? 100), 500); // max 500
-  const offset = Math.max(Number(c.req.query('offset') ?? 0),   0);
+  const email    = c.get('userEmail');
+  const rawLimit = Number.parseInt(c.req.query('limit') || '100', 10);
+  const limit    = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), 500);
+
+  const rawOffset = Number.parseInt(c.req.query('offset') || '0', 10);
+  const offset    = Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0);
 
   const result = await getHistorial(c.env, email, limit, offset);
 

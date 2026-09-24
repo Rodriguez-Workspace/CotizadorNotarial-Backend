@@ -52,8 +52,19 @@ app.use('*', async (c, next) => {
 
 // ─── Rate Limiting (per IP) ────────────────────────────────────────────────
 app.use('/api/*', async (c, next) => {
-  const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
+  const rawIp = c.req.header('CF-Connecting-IP') ?? c.req.header('X-Forwarded-For') ?? 'unknown';
+  const ip = rawIp.split(',')[0].trim();
   const now = Date.now();
+
+  // Prune expired entries if the store grows to prevent memory leaks in isolates
+  if (rateLimitStore.size > 100) {
+    for (const [k, v] of rateLimitStore.entries()) {
+      if (now - v.windowStart > RATE_LIMIT_WINDOW) {
+        rateLimitStore.delete(k);
+      }
+    }
+  }
+
   const entry = rateLimitStore.get(ip);
 
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {

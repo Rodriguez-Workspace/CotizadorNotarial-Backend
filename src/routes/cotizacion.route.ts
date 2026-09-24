@@ -15,14 +15,12 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables, CotizacionRow } from '../types';
-import { firestoreGetDoc } from '../services/firestore.service';
-import { appendCotizaciones, getSpreadsheetId } from '../services/sheets.service';
+import { appendCotizaciones } from '../services/sheets.service';
 
 const cotizacion = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 cotizacion.post('/', async (c) => {
-  const email     = c.get('userEmail');
-  const notariaId = c.get('notariaId');
+  const email = c.get('userEmail');
 
   // Parse and validate body
   let body: { items?: unknown };
@@ -48,22 +46,14 @@ cotizacion.post('/', async (c) => {
     referenciaInterna: String(item['referenciaInterna'] ?? ''),
     tipoActo:          String(item['tipoActo']          ?? ''),
     moneda:            String(item['moneda']            ?? 'SOLES'),
-    cantidadBienes: Number(item['cantidadBienes'] ?? 1),
+    cantidadBienes:    Number(item['cantidadBienes']    ?? 1),
     costoNotarial:     Number(item['costoNotarial']     ?? 0),
     costoRegistral:    Number(item['costoRegistral']    ?? 0),
     totalPagar:        Number(item['totalPagar']        ?? 0),
   }));
 
-  // Get notaría name for the spreadsheet title
-  const notariaDoc   = await firestoreGetDoc(c.env, `notarias/${notariaId}`);
-  const perfil       = (notariaDoc?.['perfil'] ?? {}) as Record<string, unknown>;
-  const notariaNombre = String(perfil['nombre_oficial'] ?? notariaId);
-
-  // Append to (or create) the abogado's spreadsheet
-  await appendCotizaciones(c.env, email, notariaNombre, rows);
-
-  // Return the spreadsheetId so the frontend can show a direct link if desired
-  const spreadsheetId = await getSpreadsheetId(c.env, email);
+  // Insert rows at top of the abogado's spreadsheet and retrieve the spreadsheet ID
+  const spreadsheetId = await appendCotizaciones(c.env, email, rows);
 
   return c.json({ success: true, spreadsheetId });
 });

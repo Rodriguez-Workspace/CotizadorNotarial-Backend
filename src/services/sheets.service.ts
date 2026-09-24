@@ -50,19 +50,18 @@ export async function getSpreadsheetId(
 // ─── Write ─────────────────────────────────────────────────────────────────
 
 /**
- * Appends one or more cotizacion rows to the abogado's spreadsheet.
- * If the Sheet doesn't exist yet, it is created automatically.
+ * Inserts one or more cotizacion rows at row 2 (immediately below header)
+ * so that the most recent cotizaciones are always at the top of the spreadsheet.
  *
- * @param email         Abogado's email
- * @param notariaNombre Notaría name (used only if creating a new Sheet)
- * @param rows          One or more rows to append
+ * @param email Abogado's email
+ * @param rows  One or more rows to insert
+ * @returns The spreadsheet ID
  */
 export async function appendCotizaciones(
   env: Env,
   email: string,
-  notariaNombre: string,
   rows: CotizacionRow[]
-): Promise<void> {
+): Promise<string> {
   const spreadsheetId = await getSpreadsheetId(env, email);
   const token = await getToken(env);
 
@@ -77,21 +76,65 @@ export async function appendCotizaciones(
     r.totalPagar,
   ]);
 
-  const url = `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-
-  const res = await fetch(url, {
+  // 1. Insert empty rows at Row 2 (startIndex: 1) using batchUpdate
+  const batchRes = await fetch(`${SHEETS_BASE}/${spreadsheetId}:batchUpdate`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ values }),
+    body: JSON.stringify({
+      requests: [
+        {
+          insertDimension: {
+            range: {
+              sheetId: 0,
+              dimension: 'ROWS',
+              startIndex: 1,
+              endIndex: 1 + rows.length,
+            },
+            inheritFromBefore: false,
+          },
+        },
+      ],
+    }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Sheets: append failed (${res.status}): ${err}`);
+  if (!batchRes.ok) {
+    // Fallback: standard append to end of sheet if batchUpdate fails
+    const appendUrl = `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    const appendRes = await fetch(appendUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    });
+
+    if (!appendRes.ok) {
+      const err = await appendRes.text();
+      throw new Error(`Sheets: append failed (${appendRes.status}): ${err}`);
+    }
+  } else {
+    // 2. Populate newly inserted rows starting at Row 2
+    const updateUrl = `${SHEETS_BASE}/${spreadsheetId}/values/${encodeURIComponent(SHEET_NAME)}!A2:H${1 + rows.length}?valueInputOption=USER_ENTERED`;
+    const updateRes = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    });
+
+    if (!updateRes.ok) {
+      const err = await updateRes.text();
+      throw new Error(`Sheets: update failed (${updateRes.status}): ${err}`);
+    }
   }
+
+  return spreadsheetId;
 }
 
 // ─── Read (historial) ──────────────────────────────────────────────────────

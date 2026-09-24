@@ -155,7 +155,7 @@ export async function authMiddleware(
       return c.json({ error: 'Configuración de cuenta inválida' }, 403);
     }
 
-    c.set('userEmail',  payload.email);
+    c.set('userEmail',  normalizedEmail);
     c.set('userId',     payload.sub);
     c.set('notariaId',  notariaId);
     c.set('rol',        userDoc['rol'] as string);
@@ -165,6 +165,6 @@ export async function authMiddleware(
     console.log(`[auth] done (+${Date.now()-t0}ms)`);
   } catch (err) {
     console.error('[authMiddleware] error:', (err as Error).message, (err as Error).stack);
-    return c.json({ error: 'Authentication failed', detail: (err as Error).message }, 401);
+    return c.json({ error: 'Authentication failed' }, 401);
   }
 }

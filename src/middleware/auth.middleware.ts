@@ -145,6 +145,11 @@ export async function authMiddleware(
       return c.json({ error: 'Cuenta inactiva' }, 403);
     }
 
+    const userRole = (userDoc['rol'] as string) || '';
+    if (!['titular', 'admin', 'abogado'].includes(userRole)) {
+      return c.json({ error: 'Usuario no autorizado' }, 403);
+    }
+
     const notariaId = userDoc['notaria_id'] as string;
 
     // Guard: notariaId must be a safe slug — alphanumeric, hyphens, underscores only.

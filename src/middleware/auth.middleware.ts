@@ -146,7 +146,7 @@ export async function authMiddleware(
     }
 
     const userRole = (userDoc['rol'] as string) || '';
-    if (!['titular', 'admin', 'abogado'].includes(userRole)) {
+    if (!['superadmin', 'titular', 'admin', 'abogado'].includes(userRole)) {
       return c.json({ error: 'Usuario no autorizado' }, 403);
     }
 

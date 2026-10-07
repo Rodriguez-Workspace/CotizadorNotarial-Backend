@@ -24,7 +24,7 @@ tarifario.get('/', async (c) => {
   // ── Resolve requisitos catalog ──
   const reqCatalog = (notariaDoc['requisitos_catalogo'] ?? {}) as Record<string, string>;
 
-  // ── Parse actos from categorias_actos OR fallback to legacy tarifario_actos ──
+  // ── Parse actos from categorias_actos ──
   const rawCategorias = notariaDoc['categorias_actos'] as Record<
     string,
     {
@@ -32,11 +32,6 @@ tarifario.get('/', async (c) => {
       requisitos_base?: string[];
       actos?: Record<string, Record<string, unknown>>;
     }
-  > | undefined;
-
-  const rawTarifarioLegacy = notariaDoc['tarifario_actos'] as Record<
-    string,
-    Record<string, unknown>
   > | undefined;
 
   const actos: TarifarioActo[] = [];
@@ -92,36 +87,6 @@ tarifario.get('/', async (c) => {
           requisitos,
         });
       }
-    }
-  } else if (rawTarifarioLegacy) {
-    for (const [id, acto] of Object.entries(rawTarifarioLegacy)) {
-      const rawRangos = ((acto['rangos'] as unknown[]) ?? []) as Array<{
-        min?: unknown;
-        max?: unknown;
-        valor?: unknown;
-      }>;
-
-      const rangos: Rango[] = rawRangos
-        .map((r) => ({
-          min:   Number(r.min   ?? 0),
-          max:   r.max   != null ? Number(r.max)   : null,
-          valor: r.valor != null ? Number(r.valor) : null,
-        }))
-        .sort((a, b) => a.min - b.min);
-
-      const reqIds = ((acto['requisitos_asociados'] ?? acto['reqs'] ?? []) as string[]);
-      const requisitos: Requisito[] = reqIds
-        .filter((rid) => rid in reqCatalog)
-        .map((rid) => ({ id: rid, texto: reqCatalog[rid] }));
-
-      actos.push({
-        id,
-        nombre:                 String(acto['nombre'] ?? id),
-        costo_tramite:          Number(acto['costo_tramite'] ?? acto['costo'] ?? 0),
-        tasa_registral_por_mil: Number(acto['tasa_registral_por_mil'] ?? acto['tasa'] ?? 0),
-        rangos,
-        requisitos,
-      });
     }
   }
 

@@ -24,43 +24,106 @@ tarifario.get('/', async (c) => {
   // ── Resolve requisitos catalog ──
   const reqCatalog = (notariaDoc['requisitos_catalogo'] ?? {}) as Record<string, string>;
 
-  // ── Parse tarifario_actos ──
-  const rawActos = (notariaDoc['tarifario_actos'] ?? {}) as Record<
+  // ── Parse actos from categorias_actos OR fallback to legacy tarifario_actos ──
+  const rawCategorias = notariaDoc['categorias_actos'] as Record<
+    string,
+    {
+      nombre?: string;
+      requisitos_base?: string[];
+      actos?: Record<string, Record<string, unknown>>;
+    }
+  > | undefined;
+
+  const rawTarifarioLegacy = notariaDoc['tarifario_actos'] as Record<
     string,
     Record<string, unknown>
-  >;
+  > | undefined;
 
-  const actos: TarifarioActo[] = Object.entries(rawActos).map(([id, acto]) => {
-    // Resolve rangos array (sorted by min ASC)
-    const rawRangos = ((acto['rangos'] as unknown[]) ?? []) as Array<{
-      min?: unknown;
-      max?: unknown;
-      valor?: unknown;
-    }>;
+  const actos: TarifarioActo[] = [];
 
-    const rangos: Rango[] = rawRangos
-      .map((r) => ({
-        min:   Number(r.min   ?? 0),
-        max:   r.max   != null ? Number(r.max)   : null,
-        valor: r.valor != null ? Number(r.valor) : null,
-      }))
-      .sort((a, b) => a.min - b.min);
+  if (rawCategorias && Object.keys(rawCategorias).length > 0) {
+    for (const [_catId, cat] of Object.entries(rawCategorias)) {
+      const baseReqIds = Array.isArray(cat.requisitos_base) ? cat.requisitos_base : [];
+      const catActos = cat.actos ?? {};
 
-    // Resolve requisitos from catalog IDs
-    const reqIds = ((acto['requisitos_asociados'] as string[]) ?? []);
-    const requisitos: Requisito[] = reqIds
-      .filter((rid) => rid in reqCatalog)
-      .map((rid) => ({ id: rid, texto: reqCatalog[rid] }));
+      for (const [id, acto] of Object.entries(catActos)) {
+        // Resolve rangos array (sorted by min ASC)
+        const rawRangos = ((acto['rangos'] as unknown[]) ?? []) as Array<{
+          min?: unknown;
+          max?: unknown;
+          valor?: unknown;
+        }>;
 
-    return {
-      id,
-      nombre:                   String(acto['nombre'] ?? id),
-      costo_tramite:            Number(acto['costo_tramite'] ?? 0),
-      tasa_registral_por_mil:   Number(acto['tasa_registral_por_mil'] ?? 0),
-      rangos,
-      requisitos,
-    };
-  });
+        const rangos: Rango[] = rawRangos
+          .map((r) => ({
+            min:   Number(r.min   ?? 0),
+            max:   r.max   != null ? Number(r.max)   : null,
+            valor: r.valor != null ? Number(r.valor) : null,
+          }))
+          .sort((a, b) => a.min - b.min);
+
+        // Resolve requisitos:
+        // 1. Primero: requisitos base de la categoría en su orden exacto
+        // 2. Después: requisitos específicos del acto (sin duplicar los base)
+        const specificReqIds = ((acto['requisitos_asociados'] ?? acto['reqs'] ?? []) as string[]);
+
+        const combinedReqIds: string[] = [];
+        for (const bid of baseReqIds) {
+          if (!combinedReqIds.includes(bid)) {
+            combinedReqIds.push(bid);
+          }
+        }
+        for (const sid of specificReqIds) {
+          if (!combinedReqIds.includes(sid)) {
+            combinedReqIds.push(sid);
+          }
+        }
+
+        const requisitos: Requisito[] = combinedReqIds
+          .filter((rid) => rid in reqCatalog)
+          .map((rid) => ({ id: rid, texto: reqCatalog[rid] }));
+
+        actos.push({
+          id,
+          nombre:                 String(acto['nombre'] ?? id),
+          costo_tramite:          Number(acto['costo_tramite'] ?? acto['costo'] ?? 0),
+          tasa_registral_por_mil: Number(acto['tasa_registral_por_mil'] ?? acto['tasa'] ?? 0),
+          rangos,
+          requisitos,
+        });
+      }
+    }
+  } else if (rawTarifarioLegacy) {
+    for (const [id, acto] of Object.entries(rawTarifarioLegacy)) {
+      const rawRangos = ((acto['rangos'] as unknown[]) ?? []) as Array<{
+        min?: unknown;
+        max?: unknown;
+        valor?: unknown;
+      }>;
+
+      const rangos: Rango[] = rawRangos
+        .map((r) => ({
+          min:   Number(r.min   ?? 0),
+          max:   r.max   != null ? Number(r.max)   : null,
+          valor: r.valor != null ? Number(r.valor) : null,
+        }))
+        .sort((a, b) => a.min - b.min);
+
+      const reqIds = ((acto['requisitos_asociados'] ?? acto['reqs'] ?? []) as string[]);
+      const requisitos: Requisito[] = reqIds
+        .filter((rid) => rid in reqCatalog)
+        .map((rid) => ({ id: rid, texto: reqCatalog[rid] }));
+
+      actos.push({
+        id,
+        nombre:                 String(acto['nombre'] ?? id),
+        costo_tramite:          Number(acto['costo_tramite'] ?? acto['costo'] ?? 0),
+        tasa_registral_por_mil: Number(acto['tasa_registral_por_mil'] ?? acto['tasa'] ?? 0),
+        rangos,
+        requisitos,
+      });
+    }
+  }
 
   // Sort alphabetically by nombre for a consistent UI order
   actos.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));

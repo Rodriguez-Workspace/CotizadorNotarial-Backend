@@ -33,6 +33,7 @@ tenant.get('/', async (c) => {
       nombre_oficial:         perfil?.['nombre_oficial'] ?? '',
       ruc:                    perfil?.['ruc'] ?? '',
       color_marca:            perfil?.['color_marca'] ?? '#1e40af',
+      color_membrete:         perfil?.['color_membrete'] ?? '#002855',
       logo_url:               perfil?.['logo_url'] ?? '',
       direccion:              perfil?.['direccion'] ?? '',
       distrito_ciudad:        perfil?.['distrito_ciudad'] ?? '',

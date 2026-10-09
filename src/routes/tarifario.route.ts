@@ -62,21 +62,21 @@ tarifario.get('/', async (c) => {
         // 2. Después: requisitos específicos del acto (sin duplicar los base)
         const specificReqIds = ((acto['requisitos_asociados'] ?? acto['reqs'] ?? []) as string[]);
 
-        const combinedReqIds: string[] = [];
+        const combinedReqs: { id: string; is_base: boolean }[] = [];
         for (const bid of baseReqIds) {
-          if (!combinedReqIds.includes(bid)) {
-            combinedReqIds.push(bid);
+          if (!combinedReqs.some((r) => r.id === bid)) {
+            combinedReqs.push({ id: bid, is_base: true });
           }
         }
         for (const sid of specificReqIds) {
-          if (!combinedReqIds.includes(sid)) {
-            combinedReqIds.push(sid);
+          if (!combinedReqs.some((r) => r.id === sid)) {
+            combinedReqs.push({ id: sid, is_base: false });
           }
         }
 
-        const requisitos: Requisito[] = combinedReqIds
-          .filter((rid) => rid in reqCatalog)
-          .map((rid) => ({ id: rid, texto: reqCatalog[rid] }));
+        const requisitos: Requisito[] = combinedReqs
+          .filter((item) => item.id in reqCatalog)
+          .map((item) => ({ id: item.id, texto: reqCatalog[item.id], is_base: item.is_base }));
 
         actos.push({
           id,

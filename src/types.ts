@@ -55,6 +55,7 @@ export interface Rango {
 export interface Requisito {
   id: string;
   texto: string;
+  is_base?: boolean;
 }
 
 export interface TarifarioActo {

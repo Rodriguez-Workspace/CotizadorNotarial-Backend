@@ -76,4 +76,43 @@ tenant.post('/spreadsheet', async (c) => {
   return c.json({ success: true });
 });
 
+tenant.get('/image-proxy', async (c) => {
+  const url = c.req.query('url');
+  if (!url) {
+    return c.text('URL is required', 400);
+  }
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    // Allow Firebase Storage and Google Cloud Storage domains
+    if (
+      !host.endsWith('firebasestorage.googleapis.com') &&
+      !host.endsWith('firebasestorage.app') &&
+      !host.endsWith('storage.googleapis.com') &&
+      !host.endsWith('googleusercontent.com')
+    ) {
+      return c.text('Host not allowed for proxying', 403);
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      return c.text(`Upstream error: ${res.status}`, 502);
+    }
+
+    const contentType = res.headers.get('content-type') || 'image/png';
+    const buffer = await res.arrayBuffer();
+
+    return new Response(buffer, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  } catch (err: any) {
+    return c.text('Error proxying image: ' + (err.message || String(err)), 500);
+  }
+});
+
 export default tenant;

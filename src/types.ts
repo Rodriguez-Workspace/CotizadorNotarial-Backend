@@ -65,6 +65,8 @@ export interface TarifarioActo {
   tasa_registral_por_mil: number;
   rangos: Rango[];
   requisitos: Requisito[];
+  categoria_nombre?: string;
+  categoria_id?: string;
 }
 
 export interface NotariaPerfil {

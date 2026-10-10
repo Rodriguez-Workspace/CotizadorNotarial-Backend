@@ -41,6 +41,8 @@ tarifario.get('/', async (c) => {
       const baseReqIds = Array.isArray(cat.requisitos_base) ? cat.requisitos_base : [];
       const catActos = cat.actos ?? {};
 
+      const catNombre = String(cat.nombre ?? '').trim();
+
       for (const [id, acto] of Object.entries(catActos)) {
         // Resolve rangos array (sorted by min ASC)
         const rawRangos = ((acto['rangos'] as unknown[]) ?? []) as Array<{
@@ -85,6 +87,8 @@ tarifario.get('/', async (c) => {
           tasa_registral_por_mil: Number(acto['tasa_registral_por_mil'] ?? acto['tasa'] ?? 0),
           rangos,
           requisitos,
+          categoria_nombre:       catNombre,
+          categoria_id:           _catId,
         });
       }
     }

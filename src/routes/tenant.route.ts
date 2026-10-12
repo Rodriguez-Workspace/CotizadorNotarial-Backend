@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import { firestoreGetDoc, firestoreUpdateDoc } from '../services/firestore.service';
+import { getOrCreateSpreadsheet } from '../services/sheets.service';
 
 const tenant = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -22,9 +23,19 @@ tenant.get('/', async (c) => {
   
   const userEmail = c.get('userEmail');
   const userDoc = await firestoreGetDoc(c.env, `usuarios_autorizados/${userEmail}`);
-  const spreadsheetId = userDoc?.['spreadsheet_id'] as string | undefined;
+  let spreadsheetId = userDoc?.['spreadsheet_id'] as string | undefined;
 
   const perfil = notariaDoc['perfil'] as Record<string, unknown> | undefined;
+
+  // Si el usuario es abogado y no tiene spreadsheetId, la Cuenta de Servicio lo crea y lo comparte automáticamente
+  if (!spreadsheetId && c.get('rol') === 'abogado') {
+    try {
+      const nombreOficial = (perfil?.['nombre_oficial'] as string) || notariaId;
+      spreadsheetId = await getOrCreateSpreadsheet(c.env, userEmail, nombreOficial);
+    } catch (err) {
+      console.error('Failed to auto-provision spreadsheet on tenant fetch:', err);
+    }
+  }
 
   return c.json({
     notariaId,

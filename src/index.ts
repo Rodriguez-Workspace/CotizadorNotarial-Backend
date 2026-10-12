@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env, Variables } from './types';
 import { authMiddleware } from './middleware/auth.middleware';
+import { getServiceAccountToken, GOOGLE_SCOPES } from './utils/jwt.utils';
 import tenantRoute    from './routes/tenant.route';
 import tarifarioRoute from './routes/tarifario.route';
 import variablesRoute from './routes/variables.route';
@@ -80,7 +81,59 @@ app.use('/api/*', async (c, next) => {
 
 // ─── Health check (public) ────────────────────────────────────────────────
 app.get('/', (c) => {
-  return c.json({ status: 'ok', service: 'cotizador-notarial-backend', version: '2.1-sa-sheets' });
+  return c.json({ status: 'ok', service: 'cotizador-notarial-backend', version: '2.2-diag' });
+});
+
+// ─── Diagnostic check for Google Sheets & Drive (temporary) ───────────────
+app.get('/debug/sheets', async (c) => {
+  try {
+    const token = await getServiceAccountToken(
+      c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      c.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+      GOOGLE_SCOPES
+    );
+
+    // 1. Check Drive API
+    let driveStatus = 0;
+    let driveBody = '';
+    try {
+      const driveRes = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      driveStatus = driveRes.status;
+      driveBody = await driveRes.text();
+    } catch (dErr: any) {
+      driveBody = dErr.message;
+    }
+
+    // 2. Check Sheets API
+    let sheetsStatus = 0;
+    let sheetsBody = '';
+    try {
+      const sheetsRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          properties: { title: 'Test Diagnostico' },
+        }),
+      });
+      sheetsStatus = sheetsRes.status;
+      sheetsBody = await sheetsRes.text();
+    } catch (sErr: any) {
+      sheetsBody = sErr.message;
+    }
+
+    return c.json({
+      saEmail: c.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      drive: { status: driveStatus, body: driveBody },
+      sheets: { status: sheetsStatus, body: sheetsBody },
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message, stack: err.stack }, 500);
+  }
 });
 
 // ─── Image Proxy (CORS-friendly proxy for Firebase Storage images in PDFs) ──
@@ -152,8 +205,7 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 // ─── Global error handler ─────────────────────────────────────────────────
 app.onError((err, c) => {
   console.error('[Worker error]', err.message, err.stack);
-  // Do not leak internal error details in production responses
-  return c.json({ error: 'Internal server error' }, 500);
+  return c.json({ error: 'Internal server error', detail: err.message }, 500);
 });
 
 export default app;

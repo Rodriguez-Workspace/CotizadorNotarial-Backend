@@ -53,9 +53,13 @@ cotizacion.post('/', async (c) => {
   }));
 
   // Insert rows at top of the abogado's spreadsheet and retrieve the spreadsheet ID
-  const spreadsheetId = await appendCotizaciones(c.env, email, rows);
-
-  return c.json({ success: true, spreadsheetId });
+  try {
+    const spreadsheetId = await appendCotizaciones(c.env, email, rows);
+    return c.json({ success: true, spreadsheetId });
+  } catch (err: any) {
+    console.error('[cotizacion] Error appending to spreadsheet:', err);
+    return c.json({ error: 'Error guardando en Google Sheets', detail: err.message }, 500);
+  }
 });
 
 export default cotizacion;

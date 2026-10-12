@@ -80,7 +80,7 @@ app.use('/api/*', async (c, next) => {
 
 // ─── Health check (public) ────────────────────────────────────────────────
 app.get('/', (c) => {
-  return c.json({ status: 'ok', service: 'cotizador-notarial-backend' });
+  return c.json({ status: 'ok', service: 'cotizador-notarial-backend', version: '2.1-sa-sheets' });
 });
 
 // ─── Image Proxy (CORS-friendly proxy for Firebase Storage images in PDFs) ──
